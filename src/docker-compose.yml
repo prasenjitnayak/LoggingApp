@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  logging.api:
+    image: ${DOCKER_REGISTRY-}loggingapi
+    build:
+      context: .
+      dockerfile: Logging.API/Dockerfile
+    container_name: logging-api
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - Seq__ServerUrl=http://seq
+      - Otel__OtlpEndpoint=http://otel-collector:4317
+    ports:
+      - "8080:8080"
+    depends_on:
+      - seq
+      - otel-collector
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - logging.api
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    depends_on:
+      - prometheus
+
+  seq:
+    image: datalust/seq:latest
+    container_name: seq-logging
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=Admin@12345
+    ports:
+      - "5341:80"
+    volumes:
+      - seq-data:/data
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686"
+      - "14250:14250"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yml"]
+    volumes:
+      - ./otel-collector-config.yml:/etc/otel-collector-config.yml
+    #ports:
+    #  - "4317:4317"  # OTLP gRPC from app
+    #  - "4318:4318"  # OTLP HTTP (optional)
+    depends_on:
+      - jaeger
+
+volumes:
+  seq-data:
