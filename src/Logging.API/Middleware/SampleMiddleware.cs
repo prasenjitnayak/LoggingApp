@@ -18,12 +18,14 @@ public class SampleMiddleware
 
         var traceId = activity?.TraceId.ToString();
         var spanId = activity?.SpanId.ToString();
+        var correlationId = context.Request.Headers["x-correlation-id"].FirstOrDefault() ?? context.TraceIdentifier;
 
         // Add to response headers (very useful)
         if (!string.IsNullOrEmpty(traceId))
         {
             context.Response.Headers["trace-id"] = traceId;
             context.Response.Headers["span-id"] = spanId ?? string.Empty;
+            context.Response.Headers["x-correlation-id"] = correlationId ?? string.Empty;
         }
         await _next(context);
     }
